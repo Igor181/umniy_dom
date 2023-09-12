@@ -1,1 +1,5 @@
 flask>=2.2.5
+geopy
+requests
+time
+json
