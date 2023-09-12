@@ -2,15 +2,13 @@
 # Импортирует поддержку UTF-8.
 from __future__ import unicode_literals
 
-# Импортируем модули для работы с JSON и логами.
-import json
-import logging
-
 # Импортируем подмодули Flask для запуска веб-сервиса.
 from flask import Flask, request
 app = Flask(__name__)
-
-
+from geopy.geocoders import Nominatim
+import requests
+import time
+import json
 logging.basicConfig(level=logging.DEBUG)
 
 # Хранилище данных о сессиях.
@@ -41,64 +39,106 @@ def main():
         indent=2
     )
 
+def conclusion(filedata):
+    prognoz = "Температура воздуха: " + filedata["fact"]["temp"] + "°C\n"
+    prognoz += "Ощущается как: " + filedata["fact"]["feels_like"] + "°C\n"
+    match filedata["fact"]["condition"]:
+        case "clear":
+            prognoz += "Ясно"
+        case 'partly-cloudy':
+            prognoz += "Малооблачно"
+        case 'cloudy':
+            prognoz += "Облачно с прояснениями"
+        case 'overcast':
+            prognoz += "Пасмурно"
+        case 'light-rain':
+            prognoz += "Небольшой дождь"
+        case 'rain':
+            prognoz += "Дождь"
+        case 'heavy-rain':
+            prognoz += "Сильный дождь"
+        case 'showers':
+            prognoz += "Ливень"
+        case 'wet-snow':
+            prognoz += "Дождь со снегом"
+        case 'light-snow':
+            prognoz += "Небольшой снег"
+        case 'snow':
+            prognoz += "Снег"
+        case 'snow-showers':
+            prognoz += "Снегопад"
+        case 'hail':
+            prognoz += "Град"
+        case 'thunderstorm':
+            prognoz += "Гроза"
+        case 'thunderstorm-with-rain':
+            prognoz += "Дождь с грозой"
+        case 'thunderstorm-with-hail':
+            prognoz += "Гроза с градом"
+        case _:
+            prognoz += "Не удалось получить значение погодных условий"
+    return prognoz
+
 # Функция для непосредственной обработки диалога.
 def handle_dialog(req, res):
     user_id = req['session']['user_id']
-
     if req['session']['new']:
         # Это новый пользователь.
         # Инициализируем сессию и поприветствуем его.
-
-        sessionStorage[user_id] = {
-            'suggests': [
-                "Не хочу.",
-                "Не буду.",
-                "Отстань!",
-            ]
-        }
-
-        res['response']['text'] = 'Привет! Купи слона!'
-        res['response']['buttons'] = get_suggests(user_id)
+        res['response']['text'] = 'Привет! В каком населённом пункте ты находишься?'
         return
 
     # Обрабатываем ответ пользователя.
-    if req['request']['original_utterance'].lower() in [
-        'ладно',
-        'куплю',
-        'покупаю',
-        'хорошо',
-    ]:
-        # Пользователь согласился, прощаемся.
-        res['response']['text'] = 'Слона можно найти на Яндекс.Маркете!'
-        return
+    # Вводим название населённого пункта
+    city = req["request"]["original_utterance"].lower()
+    getLoc = loc.geocode(city)
 
-    # Если нет, то убеждаем его купить слона!
-    res['response']['text'] = 'Все говорят "%s", а ты купи слона!' % (
-        req['request']['original_utterance']
-    )
-    res['response']['buttons'] = get_suggests(user_id)
+    # Получаем координаты населённого пункта
+    lat = getLoc.latitude
+    lon = getLoc.longitude
+    # "Флаг для выбора старого или нового файла"
+    null = 0
+    # Задаём параметры запроса
+    params = {
+        'lat': lat,
+        'lon': lon,
+        'lang': 'ru_RU'# язык ответа
+    }
+    # задаём значение ключа API
+    api_key = '96bb9ee0-d4fc-482b-9ba7-f4f7dbb0993d'
+    #задаём url API
+    url = 'https://api.weather.yandex.ru/v2/forecast'
 
-# Функция возвращает две подсказки для ответа.
-def get_suggests(user_id):
-    session = sessionStorage[user_id]
+    # проверка существования файла Weather.json
+    try:
+        # если файл Weather_'название города'.json существует, сравниваем время в файле с временем в моменте
+        with open("Weather_" + city + ".json", "r") as q:
+            time = int(time.time()) # время в моменте
+            filedata = json.load(q)
+            filetime = filedata ['now'] # время в файле
 
-    # Выбираем две первые подсказки из массива.
-    suggests = [
-        {'title': suggest, 'hide': True}
-        for suggest in session['suggests'][:2]
-    ]
+            if time-filetime<360000:# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Вернуть значение 3600 после тестов!!!!!!!!!!!!!!!!!!!!!!
+                res["response"]["text"] = "Старый файл" # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!убрать после тестов!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                conclusion(filedata)
+            else:
+                null = 1
+    except:
+        null = 1
+    if null == 1:
+        # делаем запрос API
+        r = requests.get(url, params=params, headers={'X-Yandex-API-Key': api_key})
 
-    # Убираем первую подсказку, чтобы подсказки менялись каждый раз.
-    session['suggests'] = session['suggests'][1:]
-    sessionStorage[user_id] = session
+        # проверяем статус ответа
+        if(r.status_code==200):
+            # преобразуем ответ в JSON формат
+            data = r.json()
 
-    # Если осталась только одна подсказка, предлагаем подсказку
-    # со ссылкой на Яндекс.Маркет.
-    if len(suggests) < 2:
-        suggests.append({
-            "title": "Ладно",
-            "url": "https://market.yandex.ru/search?text=слон",
-            "hide": True
-        })
+            # файл с инфой о погоде
+            with open("Weather_" + city + ".json", "w+") as f:
+                json.dump(data, f)
 
-    return suggests
+                # выводим данные о текущей погоде
+                #res["response"]["text"] = "Новый файл" # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!убрать после тестов!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                res["response"]["text"] = conclusion(data)
+        else:
+            res["response"]["text"] = "АЛАРМ!!! КАКАЯ-ТО ПРОБЛЕМА! " + r.status_code
