@@ -39,46 +39,6 @@ def main():
         indent=2
     )
 
-def conclusion(filedata):
-    prognoz = "Температура воздуха: " + filedata["fact"]["temp"] + "°C\n"
-    prognoz += "Ощущается как: " + filedata["fact"]["feels_like"] + "°C\n"
-    match filedata["fact"]["condition"]:
-        case "clear":
-            prognoz += "Ясно"
-        case 'partly-cloudy':
-            prognoz += "Малооблачно"
-        case 'cloudy':
-            prognoz += "Облачно с прояснениями"
-        case 'overcast':
-            prognoz += "Пасмурно"
-        case 'light-rain':
-            prognoz += "Небольшой дождь"
-        case 'rain':
-            prognoz += "Дождь"
-        case 'heavy-rain':
-            prognoz += "Сильный дождь"
-        case 'showers':
-            prognoz += "Ливень"
-        case 'wet-snow':
-            prognoz += "Дождь со снегом"
-        case 'light-snow':
-            prognoz += "Небольшой снег"
-        case 'snow':
-            prognoz += "Снег"
-        case 'snow-showers':
-            prognoz += "Снегопад"
-        case 'hail':
-            prognoz += "Град"
-        case 'thunderstorm':
-            prognoz += "Гроза"
-        case 'thunderstorm-with-rain':
-            prognoz += "Дождь с грозой"
-        case 'thunderstorm-with-hail':
-            prognoz += "Гроза с градом"
-        case _:
-            prognoz += "Не удалось получить значение погодных условий"
-    return prognoz
-
 # Функция для непосредственной обработки диалога.
 def handle_dialog(req, res):
     user_id = req['session']['user_id']
@@ -142,3 +102,43 @@ def handle_dialog(req, res):
                 res["response"]["text"] = conclusion(data)
         else:
             res["response"]["text"] = "АЛАРМ!!! КАКАЯ-ТО ПРОБЛЕМА! " + r.status_code
+
+def conclusion(filedata):
+    prognoz = "Температура воздуха: " + filedata["fact"]["temp"] + "°C\n"
+    prognoz += "Ощущается как: " + filedata["fact"]["feels_like"] + "°C\n"
+    match filedata["fact"]["condition"]:
+        case "clear":
+            prognoz += "Ясно"
+        case 'partly-cloudy':
+            prognoz += "Малооблачно"
+        case 'cloudy':
+            prognoz += "Облачно с прояснениями"
+        case 'overcast':
+            prognoz += "Пасмурно"
+        case 'light-rain':
+            prognoz += "Небольшой дождь"
+        case 'rain':
+            prognoz += "Дождь"
+        case 'heavy-rain':
+            prognoz += "Сильный дождь"
+        case 'showers':
+            prognoz += "Ливень"
+        case 'wet-snow':
+            prognoz += "Дождь со снегом"
+        case 'light-snow':
+            prognoz += "Небольшой снег"
+        case 'snow':
+            prognoz += "Снег"
+        case 'snow-showers':
+            prognoz += "Снегопад"
+        case 'hail':
+            prognoz += "Град"
+        case 'thunderstorm':
+            prognoz += "Гроза"
+        case 'thunderstorm-with-rain':
+            prognoz += "Дождь с грозой"
+        case 'thunderstorm-with-hail':
+            prognoz += "Гроза с градом"
+        case _:
+            prognoz += "Не удалось получить значение погодных условий"
+    return prognoz
