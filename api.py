@@ -108,9 +108,9 @@ def conclusion(filedata):
     prognoz += "Ощущается как: " + filedata["fact"]["feels_like"] + "°C\n"
     if (filedata["fact"]["condition"]=="clear"):
         prognoz += "Ясно"
-    else if (filedata["fact"]["condition"]=="partly-cloudy"):
+    elif (filedata["fact"]["condition"]=="partly-cloudy"):
         prognoz += "Малооблачно"
-    else if (filedata["fact"]["condition"]=="cloudy"):
+    elif (filedata["fact"]["condition"]=="cloudy"):
         prognoz += "Облачно с прояснениями"
     elif (filedata["fact"]["condition"]=="overcast"):
         prognoz += "Пасмурно"
