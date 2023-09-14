@@ -106,7 +106,42 @@ def handle_dialog(req, res):
 def conclusion(filedata):
     prognoz = "Температура воздуха: " + filedata["fact"]["temp"] + "°C\n"
     prognoz += "Ощущается как: " + filedata["fact"]["feels_like"] + "°C\n"
-    match filedata["fact"]["condition"]:
+    if (filedata["fact"]["condition"]=="clear"):
+        prognoz += "Ясно"
+    else if (filedata["fact"]["condition"]=="partly-cloudy"):
+        prognoz += "Малооблачно"
+    else if (filedata["fact"]["condition"]=="cloudy"):
+        prognoz += "Облачно с прояснениями"
+    elif (filedata["fact"]["condition"]=="overcast"):
+        prognoz += "Пасмурно"
+    elif (filedata["fact"]["condition"]=="light-rain"):
+        prognoz += "Небольшой дождь"
+    elif (filedata["fact"]["condition"]=="rain"):
+        prognoz += "Дождь"
+    elif (filedata["fact"]["condition"]=="heavy-rain"):
+        prognoz += "Сильный дождь"
+    elif (filedata["fact"]["condition"]=="showers"):
+        prognoz += "Ливень"
+    elif (filedata["fact"]["condition"]=="wet-snow"):
+        prognoz += "Дождь со снегом"
+    elif (filedata["fact"]["condition"]=="light-snow"):
+        prognoz += "Небольшой снег"
+    elif (filedata["fact"]["condition"]=="snow"):
+        prognoz += "Снег"
+    elif (filedata["fact"]["condition"]=="snow-showers"):
+        prognoz += "Снегопад"
+    elif (filedata["fact"]["condition"]=="hail"):
+        prognoz += "Град"
+    elif (filedata["fact"]["condition"]=="thunderstorm"):
+        prognoz += "Гроза"
+    elif (filedata["fact"]["condition"]=="thunderstorm-with-rain"):
+        prognoz += "Дождь с грозой"
+    elif (filedata["fact"]["condition"]=="thunderstorm-with-hail"):
+        prognoz += "Гроза с градом"
+    else:
+        prognoz += "Не удалось получить значение погодных условий"
+    
+    '''match filedata["fact"]["condition"]:
         case "clear":
             prognoz += "Ясно"
         case 'partly-cloudy':
@@ -141,4 +176,5 @@ def conclusion(filedata):
             prognoz += "Гроза с градом"
         case _:
             prognoz += "Не удалось получить значение погодных условий"
+        '''
     return prognoz
