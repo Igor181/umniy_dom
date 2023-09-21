@@ -9,6 +9,7 @@ from geopy.geocoders import Nominatim
 import requests
 import time
 import json
+import psycopg2
 logging.basicConfig(level=logging.DEBUG)
 
 # Хранилище данных о сессиях.
@@ -69,112 +70,136 @@ def handle_dialog(req, res):
     #задаём url API
     url = 'https://api.weather.yandex.ru/v2/forecast'
 
-    # проверка существования файла Weather.json
     try:
-        # если файл Weather_'название города'.json существует, сравниваем время в файле с временем в моменте
-        with open("Weather_" + city + ".json", "r") as q:
-            time = int(time.time()) # время в моменте
-            filedata = json.load(q)
-            filetime = filedata ['now'] # время в файле
-
-            if time-filetime<360000:# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Вернуть значение 3600 после тестов!!!!!!!!!!!!!!!!!!!!!!
-                res["response"]["text"] = "Старый файл" # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!убрать после тестов!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                conclusion(filedata)
+        time = int(time.time())
+        # пытаемся подключиться к базе данных
+        conn = psycopg2.connect(dbname='verceldb',user='default',password='9RKMIJP8GHSE',host='ep-aged-hall-03402926-pooler.us-east-1.postgres.vercel-storage.com')
+        cursor = conn.cursor
+        cursor.execute('SELECT CASE WHEN (select Time from scientist where City = %s) is NULL THEN \'NULL\' ELSE (select Time from scientist where City = %s) END', (city, city))
+        if(cursor.fetchone()=='NULL'):   # Запись о городе не существует
+            # API-запрос
+            r = requests.get(url, params=params, headers={'X-Yandex-API-Key': api_key})
+            # проверяем статус ответа
+            if(r.status_code==200):
+                # преобразуем ответ в JSON формат
+                data = r.json()
+                temp = data["fact"]["temp"]
+                feel = data["fact"]["feels_like"]
+                cond = data["fact"]["condition"]
+                #Добавление записи
+                cursor.execute('INSERT INTO whether (City, Time, Temp, Feel, Cond) VALUES(%s, %s, %s, %s, %s)', (city, time, temp, feel, cond))
+                conclusion(temp,feel,cond)
             else:
-                null = 1
+                res["response"]["text"] = "АЛАРМ!!! КАКАЯ-ТО ПРОБЛЕМА! " + r.status_code
+        else:   # Запись о городе существует
+            if(time-cursor.fetchone()<10900): # Используем данные из базы
+                cursor.execute('SELECT Temp, Feel, Cond FROM whether WHERE City = %s', (city))
+                #temp, feel, cond = cursor.fetchone()
+                conclusion(cursor.fetchone())
+            else: # Вносим спаршенные данные в базу
+                # API-запрос
+                r = requests.get(url, params=params, headers={'X-Yandex-API-Key': api_key})
+                # проверяем статус ответа
+                if(r.status_code==200):
+                    # преобразуем ответ в JSON формат
+                    data = r.json()
+                    temp = data["fact"]["temp"]
+                    feel = data["fact"]["feels_like"]
+                    cond = data["fact"]["condition"]
+                    #Обновление записи
+                    cursor.execute('UPDATE whether SET Time = %s, Temp = %s, Feel = %s, Cond = %s WHERE City = %s', (time, temp, feel, cond, city));
+                else:
+                    res["response"]["text"] = "АЛАРМ!!! КАКАЯ-ТО ПРОБЛЕМА! " + r.status_code
     except:
-        null = 1
-    if null == 1:
-        # делаем запрос API
-        r = requests.get(url, params=params, headers={'X-Yandex-API-Key': api_key})
+        # в случае сбоя подключения будет выведено сообщение в STDOUT
+        print('Can`t establish connection to database')
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
-        # проверяем статус ответа
-        if(r.status_code==200):
-            # преобразуем ответ в JSON формат
-            data = r.json()
-
-            # файл с инфой о погоде
-            with open("Weather_" + city + ".json", "w+") as f:
-                json.dump(data, f)
-
-                # выводим данные о текущей погоде
-                #res["response"]["text"] = "Новый файл" # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!убрать после тестов!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                res["response"]["text"] = conclusion(data)
-        else:
-            res["response"]["text"] = "АЛАРМ!!! КАКАЯ-ТО ПРОБЛЕМА! " + r.status_code
-
-def conclusion(filedata):
-    prognoz = "Температура воздуха: " + filedata["fact"]["temp"] + "°C\n"
-    prognoz += "Ощущается как: " + filedata["fact"]["feels_like"] + "°C\n"
-    if (filedata["fact"]["condition"]=="clear"):
+def conclusion(Temp, Feel, Cond):
+    prognoz = "Температура воздуха: " + Temp + "°C\n"
+    prognoz += "Ощущается как: " + Feel + "°C\n"
+    if (Cond=="clear"):
         prognoz += "Ясно"
-    elif (filedata["fact"]["condition"]=="partly-cloudy"):
+    elif (Cond=="partly-cloudy"):
         prognoz += "Малооблачно"
-    elif (filedata["fact"]["condition"]=="cloudy"):
+    elif (Cond=="cloudy"):
         prognoz += "Облачно с прояснениями"
-    elif (filedata["fact"]["condition"]=="overcast"):
+    elif (Cond=="overcast"):
         prognoz += "Пасмурно"
-    elif (filedata["fact"]["condition"]=="light-rain"):
+    elif (Cond=="light-rain"):
         prognoz += "Небольшой дождь"
-    elif (filedata["fact"]["condition"]=="rain"):
+    elif (Cond=="rain"):
         prognoz += "Дождь"
-    elif (filedata["fact"]["condition"]=="heavy-rain"):
+    elif (Cond=="heavy-rain"):
         prognoz += "Сильный дождь"
-    elif (filedata["fact"]["condition"]=="showers"):
+    elif (Cond=="showers"):
         prognoz += "Ливень"
-    elif (filedata["fact"]["condition"]=="wet-snow"):
+    elif (Cond=="wet-snow"):
         prognoz += "Дождь со снегом"
-    elif (filedata["fact"]["condition"]=="light-snow"):
+    elif (Cond=="light-snow"):
         prognoz += "Небольшой снег"
-    elif (filedata["fact"]["condition"]=="snow"):
+    elif (Cond=="snow"):
         prognoz += "Снег"
-    elif (filedata["fact"]["condition"]=="snow-showers"):
+    elif (Cond=="snow-showers"):
         prognoz += "Снегопад"
-    elif (filedata["fact"]["condition"]=="hail"):
+    elif (Cond=="hail"):
         prognoz += "Град"
-    elif (filedata["fact"]["condition"]=="thunderstorm"):
+    elif (Cond=="thunderstorm"):
         prognoz += "Гроза"
-    elif (filedata["fact"]["condition"]=="thunderstorm-with-rain"):
+    elif (Cond=="thunderstorm-with-rain"):
         prognoz += "Дождь с грозой"
-    elif (filedata["fact"]["condition"]=="thunderstorm-with-hail"):
+    elif (Cond=="thunderstorm-with-hail"):
         prognoz += "Гроза с градом"
     else:
         prognoz += "Не удалось получить значение погодных условий"
-    
-    '''match filedata["fact"]["condition"]:
-        case "clear":
-            prognoz += "Ясно"
-        case 'partly-cloudy':
-            prognoz += "Малооблачно"
-        case 'cloudy':
-            prognoz += "Облачно с прояснениями"
-        case 'overcast':
-            prognoz += "Пасмурно"
-        case 'light-rain':
-            prognoz += "Небольшой дождь"
-        case 'rain':
-            prognoz += "Дождь"
-        case 'heavy-rain':
-            prognoz += "Сильный дождь"
-        case 'showers':
-            prognoz += "Ливень"
-        case 'wet-snow':
-            prognoz += "Дождь со снегом"
-        case 'light-snow':
-            prognoz += "Небольшой снег"
-        case 'snow':
-            prognoz += "Снег"
-        case 'snow-showers':
-            prognoz += "Снегопад"
-        case 'hail':
-            prognoz += "Град"
-        case 'thunderstorm':
-            prognoz += "Гроза"
-        case 'thunderstorm-with-rain':
-            prognoz += "Дождь с грозой"
-        case 'thunderstorm-with-hail':
-            prognoz += "Гроза с градом"
-        case _:
-            prognoz += "Не удалось получить значение погодных условий"
-        '''
     return prognoz
+'''
+try:
+    # пытаемся подключиться к базе данных
+    conn = psycopg2.connect(dbname='verceldb', user='default', password='9RKMIJP8GHSE', 
+            host='ep-aged-hall-03402926-pooler.us-east-1.postgres.vercel-storage.com')
+    with conn.cursor as curs:
+        cursor.execute('SELECT Time, Temp, Feel, Cond FROM whether WHERE City = %s', (City = city))
+        TimeBD, TempBD, FeelBD, CondBD = cursor.fetchone()
+        if(time-TimeBD<360000)
+except:
+    # в случае сбоя подключения будет выведено сообщение в STDOUT
+    print('Can`t establish connection to database')
+finally:
+    if connection:
+        connection.close()
+
+#cursor.execute('сюда вводить SQL запрос')
+#cursor.execute('SELECT * FROM whether WHERE name=%s', ('Alfred')) - запрос с параметром
+#cursor.fetchone() — вернуть одну строку
+#connection.commit() — отправить коммит (после изменений базы)
+
+curs.execute('select CASE WHEN (select Time from scientist where City = %s) is NULL THEN 'NULL'
+        ELSE (select Time from whether where City = %s) END', (city, city))
+if(cursor.fetchone()=='NULL'):   # Запись о городе не существует
+    cursor.execute('INSERT INTO whether (City, Time, Temp, Feel, Cond) VALUES(%s, %s, %s, %s, %s)', (city, time, temp, feel, cond))  #Добавление записи
+else:   # Запись о городе существует
+    if(time-cursor.execute()<7200):
+
+
+
+# SQL command not used
+SELECT Time FROM whether
+WHERE City = %s
+
+INSERT INTO whether (City, Time, Temp, Feel, Cond)
+VALUES(%s, %s, %s, %s, %s) 
+ON CONFLICT (City) 
+DO 
+    UPDATE SET 
+        Time = EXCLUDED.Time, 
+        Temp = EXCLUDED.Temp, 
+        Feel = EXCLUDED.Feel, 
+        Cond = EXCLUDED.Cond;
+
+
+'''
