@@ -1,7 +1,4 @@
-# This is a basic workflow to help you get started with Actions
-
 name: CI
-
 # Controls when the workflow will run
 on:
   # Triggers the workflow on push or pull request events but only for the "main" branch
@@ -24,6 +21,7 @@ jobs:
 
       # Set secrets
       - name: Push to
+        uses: docker/build-push-action@v3.0.0
         with:
           secrets: |
             "API_POGODA=${{ secrets.API_POGODA}}"
