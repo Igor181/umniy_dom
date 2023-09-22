@@ -1,10 +1,11 @@
-FROM python:2.7.14-alpine
+FROM python:3.6
 
 WORKDIR /app
 COPY . /app
 
 EXPOSE 5000
 
+RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 RUN --mount=type=secret,id=API_POGODA \
   --mount=type=secret,id=BD_HOST \
