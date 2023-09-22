@@ -5,6 +5,7 @@ COPY . /app
 
 EXPOSE 5000
 
+RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 RUN --mount=type=secret,id=API_POGODA \
   --mount=type=secret,id=BD_HOST \
